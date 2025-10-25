@@ -1,0 +1,19 @@
+Action(SiteID=US|Country=US|Currency=USD|Version=1193),Category,Title,Description,PicURL,Quantity,Format,Duration,StartPrice,BuyItNowPrice,ReservePrice,ImmediatePayRequired,PayPalEmailAddress,ShippingType,ShipToLocations,ShippingService-1:Option,ShippingService-1:Cost,DispatchTimeMax,Location,ConditionID,ConditionDescription,Brand,Size,Color,ReturnPolicy.ReturnsAcceptedOption,ReturnPolicy.ReturnsWithinOption,ReturnPolicy.ShippingCostPaidByOption
+Add,,Patagonia Better Sweater Size M,"
+    <p><strong>Brand:</strong> Patagonia</p>
+    <p><strong>Item:</strong> Better Sweater</p>
+    <p><strong>Condition:</strong> Good</p>
+    <p><strong>Size:</strong> M</p>
+    <p>Please see photos for exact condition and details.</p>
+    <p>Fast shipping! We ship within 1 business day.</p>
+    <p>Returns accepted within 30 days.</p>
+    ",,1,FixedPrice,GTC,,,,1,,Flat,US,USPSPriority,12.99,1,United States,3000,Good,Patagonia,M,,ReturnsAccepted,Days_30,Buyer
+Add,,Apple iPhone Case,"
+    <p><strong>Brand:</strong> Apple</p>
+    <p><strong>Item:</strong> iPhone Case</p>
+    <p><strong>Condition:</strong> Excellent</p>
+    
+    <p>Please see photos for exact condition and details.</p>
+    <p>Fast shipping! We ship within 1 business day.</p>
+    <p>Returns accepted within 30 days.</p>
+    ",,1,FixedPrice,GTC,,,,1,,Flat,US,USPSPriority,12.99,1,United States,2000,Excellent,Apple,,,ReturnsAccepted,Days_30,Buyer
