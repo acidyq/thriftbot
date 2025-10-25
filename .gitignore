@@ -81,6 +81,7 @@ photos/
 processed/
 drafts/*.csv
 comps/*.csv
+_my_docs_/
 
 # Logs
 *.log
