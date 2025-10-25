@@ -15,82 +15,84 @@ source .venv/bin/activate  # On macOS/Linux
 pip install -r requirements.txt
 
 # Initialize database
-python -m thriftbot db init
+python3 -m thriftbot db init
 
 # Test installation
-python -m thriftbot version
+python3 -m thriftbot version
 ```
+
+**Note**: On macOS, use `python3` instead of `python` for all commands.
 
 ### New User Onboarding Commands
 ```bash
 # Interactive getting started guide (choose your experience level)
-python -m thriftbot start
+python3 -m thriftbot start
 
 # Full step-by-step onboarding for beginners
-python -m thriftbot onboard
+python3 -m thriftbot onboard
 
 # Quick item entry for experienced users
-python -m thriftbot quick
+python3 -m thriftbot quick
 ```
 
 ### Common Development Commands
 ```bash
 # Run ThriftBot CLI
-python -m thriftbot
+python3 -m thriftbot
 
 # Add inventory item (traditional method)
-python -m thriftbot item add --sku 25-0001 --category "Clothing" --brand "Patagonia" --name "Better Sweater" --size "M" --cost 7.99 --condition "Good" --color "Navy"
+python3 -m thriftbot item add --sku 25-0001 --category "Clothing" --brand "Patagonia" --name "Better Sweater" --size "M" --cost 7.99 --condition "Good" --color "Navy"
 
 # List items with pricing info
-python -m thriftbot item list --show-pricing --limit 50
+python3 -m thriftbot item list --show-pricing --limit 50
 
 # Generate AI content for item
-python -m thriftbot ai describe --sku 25-0001 --use-ai --style professional
+python3 -m thriftbot ai describe --sku 25-0001 --use-ai --style professional
 
 # Analyze pricing for item
-python -m thriftbot pricing analyze --sku 25-0001
+python3 -m thriftbot pricing analyze --sku 25-0001
 
 # Process photos for item
-python -m thriftbot photo process --sku 25-0001 --input-dir photos --output-dir processed
+python3 -m thriftbot photo process --sku 25-0001 --input-dir photos --output-dir processed
 
 # Export to eBay CSV
-python -m thriftbot export ebay-csv --output drafts/my_listings.csv
+python3 -m thriftbot export ebay-csv --output drafts/my_listings.csv
 
 # Run complete workflow pipeline
-python -m thriftbot workflow pipeline --sku 25-0001 --style professional --auto-export
+python3 -m thriftbot workflow pipeline --sku 25-0001 --style professional --auto-export
 
 # Batch process multiple items
-python -m thriftbot workflow batch-pipeline --input-dir photos --style professional
+python3 -m thriftbot workflow batch-pipeline --input-dir photos --style professional
 ```
 
 ### Testing Commands
 ```bash
 # Test eBay API integration (sandbox)
-python -m thriftbot ebay test --sku 25-0001 --sandbox
+python3 -m thriftbot ebay test --sku 25-0001 --sandbox
 
 # Check eBay API status
-python -m thriftbot ebay status --sandbox
+python3 -m thriftbot ebay status --sandbox
 
 # Analyze photo quality
-python -m thriftbot photo analyze --path photos/25-0001_front.jpg
+python3 -m thriftbot photo analyze --path photos/25-0001_front.jpg
 ```
 
 ### Database Management
 ```bash
 # Reinitialize database (destructive)
 rm thriftbot.db
-python -m thriftbot db init
+python3 -m thriftbot db init
 
 # Check database contents via CLI
-python -m thriftbot item list --show-pricing --show-photos
+python3 -m thriftbot item list --show-pricing --show-photos
 ```
 
 ## User Experience Features
 
 ### Beginner-Friendly Onboarding
-- **Interactive Start Guide**: `python -m thriftbot start` - Choose experience level and get guided to appropriate flow
-- **Step-by-Step Onboarding**: `python -m thriftbot onboard` - Full walkthrough with explanations, examples, and validation
-- **Quick Entry Mode**: `python -m thriftbot quick` - Minimal questions for experienced users
+- **Interactive Start Guide**: `python3 -m thriftbot start` - Choose experience level and get guided to appropriate flow
+- **Step-by-Step Onboarding**: `python3 -m thriftbot onboard` - Full walkthrough with explanations, examples, and validation
+- **Quick Entry Mode**: `python3 -m thriftbot quick` - Minimal questions for experienced users
 
 ### Intelligent User Assistance
 - **Smart SKU Generation**: Auto-generates unique SKUs with format YEAR-MONTH-RANDOM
@@ -170,13 +172,13 @@ ThriftBot is a **modular CLI application** built with Python 3.9+ using a **phas
 #### Single Item Workflow
 ```bash
 # Add item → Process photos → Generate content → Analyze pricing → Export
-python -m thriftbot workflow pipeline --sku SKU-001 --auto-export
+python3 -m thriftbot workflow pipeline --sku SKU-001 --auto-export
 ```
 
 #### Batch Processing Workflow
 ```bash
 # Process all items found in photos directory
-python -m thriftbot workflow batch-pipeline --input-dir photos
+python3 -m thriftbot workflow batch-pipeline --input-dir photos
 ```
 
 ### Directory Structure
