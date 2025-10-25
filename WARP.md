@@ -21,12 +21,24 @@ python -m thriftbot db init
 python -m thriftbot version
 ```
 
+### New User Onboarding Commands
+```bash
+# Interactive getting started guide (choose your experience level)
+python -m thriftbot start
+
+# Full step-by-step onboarding for beginners
+python -m thriftbot onboard
+
+# Quick item entry for experienced users
+python -m thriftbot quick
+```
+
 ### Common Development Commands
 ```bash
 # Run ThriftBot CLI
 python -m thriftbot
 
-# Add inventory item
+# Add inventory item (traditional method)
 python -m thriftbot item add --sku 25-0001 --category "Clothing" --brand "Patagonia" --name "Better Sweater" --size "M" --cost 7.99 --condition "Good" --color "Navy"
 
 # List items with pricing info
@@ -72,6 +84,25 @@ python -m thriftbot db init
 # Check database contents via CLI
 python -m thriftbot item list --show-pricing --show-photos
 ```
+
+## User Experience Features
+
+### Beginner-Friendly Onboarding
+- **Interactive Start Guide**: `python -m thriftbot start` - Choose experience level and get guided to appropriate flow
+- **Step-by-Step Onboarding**: `python -m thriftbot onboard` - Full walkthrough with explanations, examples, and validation
+- **Quick Entry Mode**: `python -m thriftbot quick` - Minimal questions for experienced users
+
+### Intelligent User Assistance
+- **Smart SKU Generation**: Auto-generates unique SKUs with format YEAR-MONTH-RANDOM
+- **Category Suggestions**: Pre-populated list of common reseller categories
+- **Condition Guide**: Detailed explanations of each condition level with eBay standards
+- **Input Validation**: Real-time validation with helpful error messages
+- **Duplicate Detection**: Automatic SKU conflict resolution
+
+### Guided Workflows
+- **Progressive Disclosure**: Users can opt-in to AI content generation and pricing analysis during onboarding
+- **Next Step Recommendations**: Clear guidance on what to do after each major action
+- **Contextual Help**: Commands suggest follow-up actions based on current state
 
 ## Architecture Overview
 

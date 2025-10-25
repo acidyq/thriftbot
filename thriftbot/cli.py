@@ -55,6 +55,375 @@ def version():
     typer.echo(f"ThriftBot v{__version__}")
 
 
+@app.command()
+def start():
+    """🏁 Getting started guide - choose your path based on experience level."""
+    typer.echo("")
+    typer.echo("🏁 Welcome to ThriftBot!")
+    typer.echo("   Let's get you started with the right approach...")
+    typer.echo("")
+    
+    typer.echo("🚀 Choose your experience level:")
+    typer.echo("   1. 🌱 New to reselling - I need step-by-step guidance")
+    typer.echo("   2. ⚡ Experienced - I just want to add items quickly")
+    typer.echo("   3. 📚 View all commands and explore")
+    typer.echo("   4. 📋 Check my current inventory")
+    typer.echo("")
+    
+    choice = typer.prompt("What would you like to do? (1-4)", default="1")
+    
+    if choice == "1":
+        typer.echo("\n🌱 Perfect! Let's walk through everything step-by-step...")
+        typer.echo("🔄 Starting interactive onboarding...\n")
+        from thriftbot.cli import onboard
+        import sys
+        # Call onboard function directly
+        try:
+            onboard()
+        except:
+            typer.echo("\n💡 You can also run: python -m thriftbot onboard")
+    
+    elif choice == "2":
+        typer.echo("\n⚡ Great! Let's add an item quickly...")
+        typer.echo("🔄 Starting quick entry...\n")
+        try:
+            quick()
+        except:
+            typer.echo("\n💡 You can also run: python -m thriftbot quick")
+    
+    elif choice == "3":
+        typer.echo("\n📚 Here are all available commands:\n")
+        import subprocess
+        subprocess.run(["python", "-m", "thriftbot", "--help"])
+        
+        typer.echo("\n💡 Useful commands to try:")
+        typer.echo("   📅 python -m thriftbot item list          # View inventory")
+        typer.echo("   🤖 python -m thriftbot ai describe --sku SKU # Generate content")
+        typer.echo("   💰 python -m thriftbot pricing analyze --sku SKU # Analyze pricing")
+        typer.echo("   🚀 python -m thriftbot workflow pipeline --sku SKU # Full workflow")
+    
+    elif choice == "4":
+        typer.echo("\n📋 Current inventory:")
+        try:
+            from thriftbot.db import get_inventory_items
+            items = get_inventory_items()
+            if items:
+                typer.echo(f"   You have {len(items)} items in inventory\n")
+                import subprocess
+                subprocess.run(["python", "-m", "thriftbot", "item", "list", "--show-pricing", "--limit", "10"])
+            else:
+                typer.echo("   Your inventory is empty - let's add your first item!")
+                typer.echo("\n🔄 Starting onboarding...\n")
+                onboard()
+        except:
+            typer.echo("   Database not initialized. Let me set that up...")
+            try:
+                from thriftbot.db import init_database
+                init_database()
+                typer.echo("   ✅ Database ready! Let's add your first item:\n")
+                onboard()
+            except Exception as e:
+                typer.echo(f"   ❌ Error: {e}")
+    
+    else:
+        typer.echo("\n💡 Invalid choice. Run 'python -m thriftbot start' to try again.")
+
+
+@app.command()
+def quick():
+    """⚡ Quick item entry - minimal questions for experienced users."""
+    try:
+        from datetime import datetime
+        import random
+        from thriftbot.db import get_item_by_sku
+        
+        typer.echo("\n⚡ ThriftBot Quick Entry")
+        typer.echo("   Fast item addition for experienced users\n")
+        
+        # Generate SKU
+        year = datetime.now().strftime("%y")
+        month = datetime.now().strftime("%m")
+        rand = random.randint(1000, 9999)
+        suggested_sku = f"{year}-{month}-{rand}"
+        
+        # Quick prompts
+        sku = typer.prompt(f"SKU [{suggested_sku}]", default=suggested_sku).strip()
+        
+        # Check SKU
+        if get_item_by_sku(sku):
+            rand = random.randint(1000, 9999)
+            sku = f"{year}-{month}-{rand}"
+            typer.echo(f"⚠️  SKU taken, using: {sku}")
+        
+        category = typer.prompt("Category").strip()
+        brand = typer.prompt("Brand").strip()
+        name = typer.prompt("Name").strip()
+        
+        while True:
+            try:
+                cost = float(typer.prompt("Cost ($)"))
+                break
+            except ValueError:
+                typer.echo("❌ Invalid number")
+        
+        # Optional fields
+        size = typer.prompt("Size [skip]", default="").strip() or None
+        color = typer.prompt("Color [skip]", default="").strip() or None
+        condition = typer.prompt("Condition [Good]", default="Good").strip()
+        
+        # Add item
+        item_id = add_item_to_inventory(
+            sku=sku, category=category, brand=brand, name=name,
+            size=size, cost=cost, condition=condition, color=color
+        )
+        
+        typer.echo(f"\n✅ Added: {name} (#{item_id})")
+        typer.echo(f"💡 Next: python -m thriftbot workflow pipeline --sku {sku}\n")
+        
+    except KeyboardInterrupt:
+        typer.echo("\n👋 Cancelled\n")
+    except Exception as e:
+        typer.echo(f"❌ Error: {e}")
+
+
+@app.command()
+def onboard():
+    """🚀 Interactive setup guide for new users - step-by-step item onboarding."""
+    try:
+        from pathlib import Path
+        import re
+        from thriftbot.db import get_item_by_sku
+        
+        # Welcome message
+        typer.echo("")
+        typer.echo("🎉 Welcome to ThriftBot Interactive Onboarding!")
+        typer.echo("   Let's get your first item set up step-by-step.")
+        typer.echo("")
+        typer.echo("📝 I'll walk you through adding an item, generating content, and getting it ready for eBay.")
+        typer.echo("")
+        
+        # Step 1: Basic Item Information
+        typer.echo("📦 STEP 1: Item Identification")
+        typer.echo("   First, let's identify what you're selling...")
+        typer.echo("")
+        
+        # SKU Generation Helper
+        def generate_suggested_sku():
+            from datetime import datetime
+            import random
+            year = datetime.now().strftime("%y")
+            month = datetime.now().strftime("%m")
+            rand = random.randint(1000, 9999)
+            return f"{year}-{month}-{rand}"
+        
+        suggested_sku = generate_suggested_sku()
+        sku_prompt = f"🏷️  Enter a unique SKU (item ID) or press Enter for suggested: {suggested_sku}"
+        sku_input = typer.prompt(sku_prompt, default="").strip()
+        sku = sku_input if sku_input else suggested_sku
+        
+        # Check if SKU already exists
+        existing_item = get_item_by_sku(sku)
+        if existing_item:
+            typer.echo(f"⚠️  SKU '{sku}' already exists! Let me suggest a new one...")
+            sku = generate_suggested_sku()
+            typer.echo(f"✅ Using SKU: {sku}")
+        
+        # Category with suggestions
+        typer.echo("")
+        typer.echo("📂 Popular categories:")
+        categories = [
+            "Clothing", "Electronics", "Books", "Home & Garden", "Sports & Outdoors",
+            "Collectibles", "Toys & Games", "Health & Beauty", "Automotive", "Crafts"
+        ]
+        for i, cat in enumerate(categories, 1):
+            typer.echo(f"   {i:2d}. {cat}")
+        
+        category = typer.prompt("\n📂 What category is your item? (or type custom)").strip()
+        if category.isdigit() and 1 <= int(category) <= len(categories):
+            category = categories[int(category) - 1]
+        
+        # Brand
+        typer.echo("")
+        brand = typer.prompt("🏭 What's the brand/manufacturer? (e.g., Nike, Apple, Vintage)").strip()
+        
+        # Item name
+        name = typer.prompt("📛 What's the item name/model? (e.g., Air Max 90, iPhone 12 Case)").strip()
+        
+        # Physical details
+        typer.echo("")
+        typer.echo("📏 STEP 2: Physical Details")
+        size = typer.prompt("📏 Size (if applicable - clothing, shoes, etc.)", default="").strip() or None
+        color = typer.prompt("🎨 Color/finish (e.g., Blue, Black, Silver)", default="").strip() or None
+        
+        # Condition with explanations
+        typer.echo("")
+        typer.echo("🔍 Condition Guide:")
+        conditions = {
+            "1": "New - Brand new, never used",
+            "2": "New with Tags - New but tags may be removed", 
+            "3": "New without Tags - New but no original tags",
+            "4": "Excellent - Barely used, like new condition",
+            "5": "Very Good - Light use, minor wear",
+            "6": "Good - Normal wear, still great condition",
+            "7": "Fair - Obvious wear but fully functional"
+        }
+        
+        for key, desc in conditions.items():
+            typer.echo(f"   {key}. {desc}")
+        
+        condition_input = typer.prompt("\n🔍 Select condition (1-7)", default="6")
+        condition_map = {
+            "1": "New", "2": "New with Tags", "3": "New without Tags",
+            "4": "Excellent", "5": "Very Good", "6": "Good", "7": "Fair"
+        }
+        condition = condition_map.get(condition_input, "Good")
+        
+        # Cost
+        typer.echo("")
+        typer.echo("💰 STEP 3: Cost Information")
+        while True:
+            try:
+                cost_input = typer.prompt("💸 How much did you pay for this item? (in dollars, e.g., 12.99)")
+                cost = float(cost_input)
+                if cost < 0:
+                    typer.echo("❌ Cost must be positive. Please try again.")
+                    continue
+                break
+            except ValueError:
+                typer.echo("❌ Please enter a valid number (e.g., 12.99)")
+        
+        # Show summary before adding
+        typer.echo("")
+        typer.echo("📋 STEP 4: Review Your Item")
+        typer.echo("   Here's what we're about to add:")
+        typer.echo("")
+        typer.echo(f"   🏷️  SKU: {sku}")
+        typer.echo(f"   📂 Category: {category}")
+        typer.echo(f"   🏭 Brand: {brand}")
+        typer.echo(f"   📛 Name: {name}")
+        if size:
+            typer.echo(f"   📏 Size: {size}")
+        if color:
+            typer.echo(f"   🎨 Color: {color}")
+        typer.echo(f"   🔍 Condition: {condition}")
+        typer.echo(f"   💰 Cost: ${cost:.2f}")
+        typer.echo("")
+        
+        if not typer.confirm("✅ Does this look correct?"):
+            typer.echo("❌ Cancelled. Run 'python -m thriftbot onboard' again to start over.")
+            return
+        
+        # Add to inventory
+        try:
+            item_id = add_item_to_inventory(
+                sku=sku, category=category, brand=brand, name=name,
+                size=size, cost=cost, condition=condition, color=color
+            )
+            typer.echo(f"\n✅ Successfully added '{name}' to your inventory!")
+            typer.echo(f"   Item ID: {item_id}")
+        except Exception as e:
+            typer.echo(f"\n❌ Error adding item: {e}")
+            return
+        
+        # Step 5: Next Steps Guide
+        typer.echo("")
+        typer.echo("🚀 STEP 5: What's Next?")
+        typer.echo("   Your item is now in the system! Here are your next steps:")
+        typer.echo("")
+        
+        # Ask about AI content generation
+        if typer.confirm("🤖 Would you like me to generate AI-powered listing content right now?"):
+            typer.echo("\n🤖 Generating professional listing content...")
+            try:
+                from thriftbot.ai import generate_listing_content
+                content = generate_listing_content(sku=sku, style="professional", include_keywords=True)
+                
+                typer.echo("\n" + "="*60)
+                typer.echo("📝 YOUR GENERATED LISTING CONTENT")
+                typer.echo("="*60)
+                typer.echo(f"\n🏷️  TITLE ({len(content['title'])} characters):")
+                typer.echo(f"   {content['title']}")
+                
+                typer.echo(f"\n📄 DESCRIPTION:")
+                # Clean description for display
+                clean_desc = re.sub('<[^<]+?>', '', content['description'])
+                clean_desc = re.sub(r'\n\s*\n', '\n', clean_desc.strip())
+                preview = clean_desc[:300] + "..." if len(clean_desc) > 300 else clean_desc
+                typer.echo(f"   {preview}")
+                
+                typer.echo(f"\n✅ Content generated using {content['generated_by'].upper()} method")
+                
+            except Exception as e:
+                typer.echo(f"❌ Error generating content: {e}")
+        
+        # Ask about pricing analysis
+        if typer.confirm("\n💰 Would you like me to analyze pricing for maximum profit?"):
+            typer.echo("\n💰 Analyzing market pricing...")
+            try:
+                from thriftbot.pricing import analyze_item_pricing
+                analysis = analyze_item_pricing(sku)
+                
+                typer.echo("\n" + "="*50)
+                typer.echo("📈 PRICING ANALYSIS")
+                typer.echo("="*50)
+                
+                pricing = analysis['pricing_analysis']['suggested_prices']
+                typer.echo(f"\n🏷️  Recommended Prices:")
+                typer.echo(f"   💚 Conservative: ${pricing['conservative']} (safe, quick sale)")
+                typer.echo(f"   💛 Competitive: ${pricing['competitive']} (market rate)")
+                typer.echo(f"   💰 Aggressive: ${pricing['aggressive']} (maximum profit)")
+                
+                best_roi = max(analysis['profit_scenarios'], key=lambda x: x['profit']['roi_percentage'])
+                typer.echo(f"\n🎯 Best ROI: {best_roi['strategy']} at ${best_roi['price']}")
+                typer.echo(f"   💵 Profit: ${best_roi['profit']['net_profit']} ({best_roi['profit']['roi_percentage']}% ROI)")
+                
+                # Update item with competitive pricing
+                from thriftbot.db import update_item_pricing
+                update_item_pricing(sku, suggested_price=float(pricing['competitive']))
+                typer.echo(f"\n✅ Updated item with competitive price: ${pricing['competitive']}")
+                
+            except Exception as e:
+                typer.echo(f"❌ Error analyzing pricing: {e}")
+        
+        # Final steps and export
+        typer.echo("\n" + "="*60)
+        typer.echo("🎉 ONBOARDING COMPLETE!")
+        typer.echo("="*60)
+        
+        typer.echo(f"\n✅ Your item '{name}' is ready for listing!")
+        
+        # Ask about CSV export
+        if typer.confirm("\n📤 Export to eBay-ready CSV file now?"):
+            try:
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_file = f"drafts/{sku}_onboard_{timestamp}.csv"
+                
+                result = export_to_ebay_csv(output_file, include_sold=False)
+                typer.echo(f"\n✅ Exported to: {output_file}")
+                typer.echo(f"   📊 {result['count']} items exported")
+                
+            except Exception as e:
+                typer.echo(f"❌ Export error: {e}")
+        
+        # Final guidance
+        typer.echo("\n📚 Next Steps:")
+        typer.echo(f"   1. 📷 Add photos: Create folder 'photos' and add images named '{sku}_*.jpg'")
+        typer.echo(f"   2. 🔄 Process photos: python -m thriftbot photo process --sku {sku}")
+        typer.echo(f"   3. 📋 View inventory: python -m thriftbot item list --show-pricing")
+        typer.echo(f"   4. 🚀 Full workflow: python -m thriftbot workflow pipeline --sku {sku}")
+        typer.echo(f"   5. 🌐 List on eBay: Upload the CSV file or use API integration")
+        
+        typer.echo("\n💡 Pro tip: Run 'python -m thriftbot onboard' again to add more items!")
+        typer.echo("\n🙏 Happy selling!")
+        
+    except KeyboardInterrupt:
+        typer.echo("\n\n👋 Onboarding cancelled. Run again anytime!")
+    except Exception as e:
+        typer.echo(f"\n❌ Onboarding error: {e}")
+        typer.echo("💡 Try running 'python -m thriftbot db init' if this is your first time.")
+
+
 @db_app.command("init")
 def init_db():
     """Initialize the ThriftBot database."""
