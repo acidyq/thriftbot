@@ -57,6 +57,12 @@ class InventoryItem(SQLModel, table=True):
     photo_paths: Optional[str] = None  # JSON string of photo file paths
     processed_photos: Optional[str] = None  # JSON string of processed photo paths
     
+    # AI-generated content
+    ai_title: Optional[str] = None  # AI-generated eBay title
+    ai_description: Optional[str] = None  # AI-generated eBay description
+    ai_generated_at: Optional[datetime] = None  # When AI content was generated
+    ai_style: Optional[str] = None  # Style used for generation (professional, casual, etc.)
+    
     # eBay listing data
     ebay_listing_id: Optional[str] = None
     ebay_listing_json: Optional[str] = None  # For browser automation
@@ -234,6 +240,36 @@ def _calculate_fees_and_profit(item: InventoryItem):
     # Calculate ROI percentage
     if item.cost > 0:
         item.roi_percentage = (item.net_profit / item.cost) * 100
+
+
+def update_ai_content(
+    sku: str,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    style: Optional[str] = None
+) -> bool:
+    """Update AI-generated content for an item."""
+    
+    with Session(engine) as session:
+        statement = select(InventoryItem).where(InventoryItem.sku == sku)
+        item = session.exec(statement).first()
+        
+        if not item:
+            return False
+            
+        # Update AI content
+        if title is not None:
+            item.ai_title = title
+        if description is not None:
+            item.ai_description = description
+        if style is not None:
+            item.ai_style = style
+        
+        item.ai_generated_at = datetime.utcnow()
+        
+        session.add(item)
+        session.commit()
+        return True
 
 
 def add_market_comparable(

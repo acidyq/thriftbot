@@ -79,29 +79,35 @@ def export_to_ebay_csv(
 def _create_ebay_csv_row(item: InventoryItem) -> List[str]:
     """Create a CSV row for eBay from an inventory item."""
     
-    # Generate title and description
-    title = f"{item.brand} {item.name}"
-    if item.size:
-        title += f" Size {item.size}"
-    if item.color:
-        title += f" {item.color}"
+    # Use AI-generated title if available, otherwise create basic title
+    if item.ai_title and item.ai_title.strip():
+        title = item.ai_title[:80]  # eBay's 80 character limit
+    else:
+        # Fallback to basic title generation
+        title = f"{item.brand} {item.name}"
+        if item.size:
+            title += f" Size {item.size}"
+        if item.color:
+            title += f" {item.color}"
+        title = title[:80]
     
-    # Truncate title to eBay's 80 character limit
-    title = title[:80]
-    
-    # Basic description
-    description = f"""
+    # Use AI-generated description if available, otherwise create basic description
+    if item.ai_description and item.ai_description.strip():
+        description = item.ai_description
+    else:
+        # Fallback to basic description generation
+        description = f"""
     <p><strong>Brand:</strong> {item.brand}</p>
     <p><strong>Item:</strong> {item.name}</p>
     <p><strong>Condition:</strong> {item.condition}</p>
     """
-    
-    if item.size:
-        description += f"<p><strong>Size:</strong> {item.size}</p>"
-    if item.color:
-        description += f"<p><strong>Color:</strong> {item.color}</p>"
-    
-    description += """
+        
+        if item.size:
+            description += f"<p><strong>Size:</strong> {item.size}</p>"
+        if item.color:
+            description += f"<p><strong>Color:</strong> {item.color}</p>"
+        
+        description += """
     <p>Please see photos for exact condition and details.</p>
     <p>Fast shipping! We ship within 1 business day.</p>
     <p>Returns accepted within 30 days.</p>
@@ -121,14 +127,24 @@ def _create_ebay_csv_row(item: InventoryItem) -> List[str]:
     
     condition_id = condition_map.get(item.condition, "3000")  # Default to Good
     
-    # Determine listing price
-    listing_price = ""
+    # Determine listing price with shipping included for competitive pricing
+    base_price = 0
     if item.listed_price:
-        listing_price = str(item.listed_price)
+        base_price = float(item.listed_price)
     elif item.suggested_price:
-        listing_price = str(item.suggested_price)
+        base_price = float(item.suggested_price)
     
-    # Create the row
+    # Add shipping cost to base price for "free shipping" competitive pricing
+    default_shipping = 12.99
+    buy_it_now_price = base_price + default_shipping if base_price > 0 else 0
+    
+    # Auction format: Start at 60% of Buy It Now price
+    start_price = round(buy_it_now_price * 0.6, 2) if buy_it_now_price > 0 else 0
+    
+    listing_price = str(buy_it_now_price) if buy_it_now_price > 0 else ""
+    start_price_str = str(start_price) if start_price > 0 else ""
+    
+    # Create the row for auction format
     row = [
         "Add",  # Action
         "",  # Category - will be determined by eBay
@@ -136,17 +152,17 @@ def _create_ebay_csv_row(item: InventoryItem) -> List[str]:
         description,  # Description
         "",  # PicURL - will be uploaded separately
         "1",  # Quantity
-        "FixedPrice",  # Format
-        "GTC",  # Duration (Good Till Cancelled)
-        "",  # StartPrice (not used for fixed price)
-        listing_price,  # BuyItNowPrice
-        "",  # ReservePrice
+        "Auction",  # Format - Changed to Auction
+        "Days_7",  # Duration - 7 day auction
+        start_price_str,  # StartPrice - 60% of Buy It Now
+        listing_price,  # BuyItNowPrice - Full price with shipping included
+        "",  # ReservePrice - No reserve
         "1",  # ImmediatePayRequired
         "",  # PayPalEmailAddress - will use default
         "Flat",  # ShippingType
         "US",  # ShipToLocations
         "USPSPriority",  # ShippingService-1:Option
-        "12.99",  # ShippingService-1:Cost
+        "0.00",  # ShippingService-1:Cost (Free shipping - cost included in item price)
         "1",  # DispatchTimeMax
         "United States",  # Location
         condition_id,  # ConditionID

@@ -115,10 +115,30 @@ def calculate_pricing_suggestions(item: InventoryItem, market_data: Dict[str, An
         aggressive_price = min(market_average * 1.2, market_max * 0.9)
         
     else:
-        # Fallback pricing when no market data available
-        conservative_price = cost * 2
-        competitive_price = cost * 2.5
-        aggressive_price = cost * 3
+        # Enhanced fallback pricing with category-specific multipliers
+        category_multipliers = {
+            "clothing": {"conservative": 4, "competitive": 5, "aggressive": 6},
+            "electronics": {"conservative": 2, "competitive": 3, "aggressive": 4},
+            "home & garden": {"conservative": 3, "competitive": 4, "aggressive": 5},
+            "sports & outdoors": {"conservative": 3.5, "competitive": 4.5, "aggressive": 6},
+            "collectibles": {"conservative": 4, "competitive": 6, "aggressive": 8}
+        }
+        
+        # Determine category multiplier
+        category_key = item.category.lower() if item.category else "clothing"
+        multipliers = None
+        for key, mult in category_multipliers.items():
+            if key in category_key or category_key in key:
+                multipliers = mult
+                break
+        
+        if not multipliers:
+            multipliers = category_multipliers["clothing"]  # Default to clothing
+        
+        # Apply category-specific multipliers
+        conservative_price = cost * multipliers["conservative"]
+        competitive_price = cost * multipliers["competitive"] 
+        aggressive_price = cost * multipliers["aggressive"]
     
     # Condition adjustments
     condition_multipliers = {
@@ -284,14 +304,34 @@ def generate_sample_comparables(item: InventoryItem) -> List[MarketComparable]:
     
     from random import uniform, choice
     
-    # Base price estimation
-    base_price = float(item.cost) * uniform(2.0, 4.0)
+    # Category-specific base price multipliers for realistic market pricing
+    category_ranges = {
+        "clothing": (4.0, 8.0),     # 4x-8x cost (e.g., $3.75 → $15-30)
+        "electronics": (2.0, 5.0),  # Electronics depreciate more
+        "home & garden": (3.0, 6.0),
+        "sports & outdoors": (3.5, 7.0),
+        "collectibles": (5.0, 12.0)
+    }
+    
+    # Determine category
+    category_key = item.category.lower() if item.category else "clothing"
+    price_range = None
+    for key, range_vals in category_ranges.items():
+        if key in category_key or category_key in key:
+            price_range = range_vals
+            break
+    
+    if not price_range:
+        price_range = category_ranges["clothing"]  # Default to clothing
+    
+    # Base price estimation with realistic market multipliers
+    base_price = float(item.cost) * uniform(price_range[0], price_range[1])
     
     sample_data = []
     
     # Generate 5-10 sample comparables with price variation
     for i in range(7):
-        price_variation = uniform(0.7, 1.3)
+        price_variation = uniform(0.8, 1.4)  # More realistic variation
         price = base_price * price_variation
         
         # Create comparable entry

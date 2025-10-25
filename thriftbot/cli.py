@@ -325,9 +325,115 @@ def onboard():
             typer.echo(f"\n❌ Error adding item: {e}")
             return
         
-        # Step 5: Next Steps Guide
+        # Step 5: Photo Setup
         typer.echo("")
-        typer.echo("🚀 STEP 5: What's Next?")
+        typer.echo("📷 STEP 5: Photo Setup")
+        typer.echo("   Let's set up photos for your listing...")
+        typer.echo("")
+        
+        photo_paths = []
+        photos_directory = None
+        
+        # Ask about photos
+        has_photos = typer.confirm("📸 Do you have photos of this item ready?")
+        
+        if has_photos:
+            typer.echo("\n📁 Photo Options:")
+            typer.echo("   1. 📂 I have photos in a specific folder")
+            typer.echo("   2. 📄 I want to specify individual photo paths")
+            typer.echo("   3. ⏭️  I'll add photos later")
+            
+            photo_choice = typer.prompt("How would you like to add photos? (1-3)", default="1")
+            
+            if photo_choice == "1":
+                # Folder-based photo discovery
+                default_dir = f"photos/{sku}"
+                typer.echo(f"\n📂 Recommended: Create a folder called '{default_dir}' and put all photos there")
+                typer.echo("   This makes it easy to find photos by SKU later.")
+                
+                photos_dir = typer.prompt(f"\n📁 Enter photo directory path (or press Enter for '{default_dir}')", default=default_dir).strip()
+                photos_directory = photos_dir
+                
+                # Create directory if it doesn't exist
+                photos_path = Path(photos_dir)
+                if not photos_path.exists():
+                    if typer.confirm(f"\n📁 Directory '{photos_dir}' doesn't exist. Create it?"):
+                        photos_path.mkdir(parents=True, exist_ok=True)
+                        typer.echo(f"✅ Created directory: {photos_dir}")
+                        typer.echo(f"\n💡 Next: Add your photos to this folder and name them like:")
+                        typer.echo(f"   - {sku}_front.jpg")
+                        typer.echo(f"   - {sku}_back.jpg")
+                        typer.echo(f"   - {sku}_details.jpg")
+                        typer.echo(f"   - etc.")
+                    else:
+                        typer.echo("⚠️  You'll need to create the directory and add photos manually later.")
+                else:
+                    # Check for existing photos
+                    photo_extensions = {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}
+                    existing_photos = [f for f in photos_path.iterdir() 
+                                     if f.is_file() and f.suffix.lower() in photo_extensions]
+                    
+                    if existing_photos:
+                        typer.echo(f"\n📷 Found {len(existing_photos)} photos in {photos_dir}:")
+                        for photo in existing_photos[:5]:  # Show first 5
+                            typer.echo(f"   - {photo.name}")
+                        if len(existing_photos) > 5:
+                            typer.echo(f"   ... and {len(existing_photos) - 5} more")
+                        
+                        photo_paths = [str(p) for p in existing_photos]
+                    else:
+                        typer.echo(f"\n📁 Directory exists but no photos found.")
+                        typer.echo(f"💡 Add photos to {photos_dir} and run photo processing later.")
+            
+            elif photo_choice == "2":
+                # Individual photo paths
+                typer.echo("\n📄 Enter photo paths one at a time (press Enter with empty path to finish):")
+                photo_num = 1
+                while True:
+                    photo_path = typer.prompt(f"Photo {photo_num} path (or Enter to finish)", default="").strip()
+                    if not photo_path:
+                        break
+                    
+                    if Path(photo_path).exists():
+                        photo_paths.append(photo_path)
+                        typer.echo(f"   ✅ Added: {Path(photo_path).name}")
+                        photo_num += 1
+                    else:
+                        typer.echo(f"   ❌ File not found: {photo_path}")
+                
+                if photo_paths:
+                    typer.echo(f"\n📸 Added {len(photo_paths)} photos total")
+                else:
+                    typer.echo("\n📷 No photos added")
+            
+            else:
+                typer.echo("\n⏭️  Skipping photo setup for now")
+        else:
+            typer.echo("\n💡 No problem! You can add photos later with:")
+            typer.echo(f"   python3 -m thriftbot photo process --sku {sku} --input-dir photos/{sku}")
+        
+        # Store photo information (if we have it)
+        if photo_paths or photos_directory:
+            try:
+                import json
+                from thriftbot.db import Session, engine, select, InventoryItem
+                
+                # Update the item with photo information
+                with Session(engine) as session:
+                    statement = select(InventoryItem).where(InventoryItem.sku == sku)
+                    item = session.exec(statement).first()
+                    if item and photo_paths:
+                        item.photo_paths = json.dumps(photo_paths)
+                        session.add(item)
+                        session.commit()
+                        typer.echo(f"\n💾 Saved {len(photo_paths)} photo paths to database")
+                        
+            except Exception as e:
+                typer.echo(f"\n⚠️  Could not save photo paths: {e}")
+        
+        # Step 6: Next Steps Guide  
+        typer.echo("")
+        typer.echo("🚀 STEP 6: What's Next?")
         typer.echo("   Your item is now in the system! Here are your next steps:")
         typer.echo("")
         
@@ -336,7 +442,17 @@ def onboard():
             typer.echo("\n🤖 Generating professional listing content...")
             try:
                 from thriftbot.ai import generate_listing_content
+                from thriftbot.db import update_ai_content
+                
                 content = generate_listing_content(sku=sku, style="professional", include_keywords=True)
+                
+                # Save AI content to database
+                update_ai_content(
+                    sku=sku,
+                    title=content['title'],
+                    description=content['description'],
+                    style=content.get('style', 'professional')
+                )
                 
                 typer.echo("\n" + "="*60)
                 typer.echo("📝 YOUR GENERATED LISTING CONTENT")
@@ -351,7 +467,7 @@ def onboard():
                 preview = clean_desc[:300] + "..." if len(clean_desc) > 300 else clean_desc
                 typer.echo(f"   {preview}")
                 
-                typer.echo(f"\n✅ Content generated using {content['generated_by'].upper()} method")
+                typer.echo(f"\n✅ Content generated and saved using {content['generated_by'].upper()} method")
                 
             except Exception as e:
                 typer.echo(f"❌ Error generating content: {e}")
@@ -408,13 +524,20 @@ def onboard():
         
         # Final guidance
         typer.echo("\n📚 Next Steps:")
-        typer.echo(f"   1. 📷 Add photos: Create folder 'photos' and add images named '{sku}_*.jpg'")
-        typer.echo(f"   2. 🔄 Process photos: python -m thriftbot photo process --sku {sku}")
-        typer.echo(f"   3. 📋 View inventory: python -m thriftbot item list --show-pricing")
-        typer.echo(f"   4. 🚀 Full workflow: python -m thriftbot workflow pipeline --sku {sku}")
+        if photos_directory or photo_paths:
+            if photos_directory:
+                typer.echo(f"   1. 📷 Add photos to: {photos_directory}/")
+            typer.echo(f"   2. 🔄 Process photos: python3 -m thriftbot photo process --sku {sku}")
+            typer.echo(f"   3. 📋 View inventory: python3 -m thriftbot item list --show-pricing --show-photos")
+        else:
+            typer.echo(f"   1. 📷 Add photos: Create folder 'photos/{sku}' and add images")
+            typer.echo(f"   2. 🔄 Process photos: python3 -m thriftbot photo process --sku {sku} --input-dir photos/{sku}")
+            typer.echo(f"   3. 📋 View inventory: python3 -m thriftbot item list --show-pricing")
+        
+        typer.echo(f"   4. 🚀 Full workflow: python3 -m thriftbot workflow pipeline --sku {sku}")
         typer.echo(f"   5. 🌐 List on eBay: Upload the CSV file or use API integration")
         
-        typer.echo("\n💡 Pro tip: Run 'python -m thriftbot onboard' again to add more items!")
+        typer.echo("\n💡 Pro tip: Run 'thriftbot onboard' again to add more items!")
         typer.echo("\n🙏 Happy selling!")
         
     except KeyboardInterrupt:
@@ -609,10 +732,19 @@ def generate_description(
         typer.echo(f"   {clean_desc[:200]}..." if len(clean_desc) > 200 else f"   {clean_desc}")
         
         if save:
-            # TODO: Save to database
-            typer.echo("\n💾 Saving to database functionality coming soon...")
+            try:
+                from thriftbot.db import update_ai_content
+                update_ai_content(
+                    sku=sku,
+                    title=content['title'],
+                    description=content['description'],
+                    style=style
+                )
+                typer.echo("\n💾 Content saved to database successfully")
+            except Exception as save_error:
+                typer.echo(f"\n❌ Error saving to database: {save_error}")
         
-        typer.echo(f"\n\u2705 Content generated successfully using {content['generated_by']} method")
+        typer.echo(f"\n✅ Content generated successfully using {content['generated_by']} method")
         
     except Exception as e:
         typer.echo(f"\u274c Error generating description: {e}", err=True)
