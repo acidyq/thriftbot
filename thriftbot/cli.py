@@ -106,14 +106,117 @@ def export_ebay_csv(
 @ai_app.command("describe")
 def generate_description(
     sku: str = typer.Option(..., help="Item SKU to generate description for"),
-    use_ai: bool = typer.Option(False, help="Use AI for description generation")
+    use_ai: bool = typer.Option(True, help="Use AI for description generation"),
+    style: str = typer.Option("professional", help="Description style: professional, casual, enthusiastic, minimalist"),
+    keywords: bool = typer.Option(True, help="Include SEO keywords in description"),
+    save: bool = typer.Option(False, help="Save generated content to database")
 ):
-    """Generate item title and description."""
-    # TODO: Implement AI description generation
-    if use_ai:
-        typer.echo("🤖 AI description generation coming soon...")
-    else:
-        typer.echo("📝 Template-based description generation coming soon...")
+    """Generate optimized eBay title and description."""
+    try:
+        from thriftbot.ai import generate_listing_content
+        
+        typer.echo(f"🤖 Generating {'AI-powered' if use_ai else 'template-based'} content for {sku}...")
+        
+        content = generate_listing_content(
+            sku=sku,
+            style=style,
+            include_keywords=keywords,
+            max_title_length=80
+        )
+        
+        typer.echo("\n" + "="*60)
+        typer.echo(f"📝 GENERATED CONTENT ({content['generated_by'].upper()})")
+        typer.echo("="*60)
+        
+        typer.echo(f"\n🏷️  TITLE ({len(content['title'])} chars):")
+        typer.echo(f"   {content['title']}")
+        
+        typer.echo(f"\n📄 DESCRIPTION:")
+        # Strip HTML tags for CLI display
+        import re
+        clean_desc = re.sub('<[^<]+?>', '', content['description'])
+        clean_desc = re.sub(r'\n\s*\n', '\n', clean_desc.strip())
+        typer.echo(f"   {clean_desc[:200]}..." if len(clean_desc) > 200 else f"   {clean_desc}")
+        
+        if save:
+            # TODO: Save to database
+            typer.echo("\n💾 Saving to database functionality coming soon...")
+        
+        typer.echo(f"\n\u2705 Content generated successfully using {content['generated_by']} method")
+        
+    except Exception as e:
+        typer.echo(f"\u274c Error generating description: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@ai_app.command("keywords")
+def suggest_item_keywords(
+    sku: str = typer.Option(..., help="Item SKU to generate keywords for"),
+    count: int = typer.Option(10, help="Number of keywords to generate")
+):
+    """Generate SEO keywords for an inventory item."""
+    try:
+        from thriftbot.ai import suggest_keywords
+        from thriftbot.db import get_item_by_sku
+        
+        item = get_item_by_sku(sku)
+        if not item:
+            typer.echo(f"\u274c Item with SKU {sku} not found", err=True)
+            raise typer.Exit(1)
+        
+        typer.echo(f"🔍 Generating {count} keywords for {item.brand} {item.name}...")
+        
+        keywords = suggest_keywords(item, count)
+        
+        typer.echo(f"\n🏷️  SUGGESTED KEYWORDS:")
+        for i, keyword in enumerate(keywords, 1):
+            typer.echo(f"   {i:2d}. {keyword}")
+            
+        typer.echo(f"\n✅ Generated {len(keywords)} keywords")
+        
+    except Exception as e:
+        typer.echo(f"\u274c Error generating keywords: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@ai_app.command("analyze-title")
+def analyze_title(
+    title: str = typer.Option(..., help="Title to analyze")
+):
+    """Analyze an eBay title for optimization."""
+    try:
+        from thriftbot.ai import analyze_title_optimization
+        
+        typer.echo(f"🔍 Analyzing title: '{title}'")
+        
+        analysis = analyze_title_optimization(title)
+        
+        typer.echo("\n" + "="*50)
+        typer.echo("📈 TITLE ANALYSIS")
+        typer.echo("="*50)
+        
+        check_mark = "\u2705"
+        x_mark = "\u274c"
+        
+        typer.echo(f"\nLength: {analysis['length']}/{analysis['max_length']} characters {check_mark if analysis['length_ok'] else x_mark}")
+        typer.echo(f"Word count: {analysis['word_count']}")
+        
+        typer.echo(f"\nOptimization checklist:")
+        typer.echo(f"  Brand mentioned: {check_mark if analysis['has_brand'] else x_mark}")
+        typer.echo(f"  Size included: {check_mark if analysis['has_size'] else x_mark}")
+        typer.echo(f"  Color mentioned: {check_mark if analysis['has_color'] else x_mark}")
+        typer.echo(f"  Condition stated: {check_mark if analysis['has_condition'] else x_mark}")
+        
+        if analysis['suggestions']:
+            typer.echo(f"\n💡 Suggestions:")
+            for suggestion in analysis['suggestions']:
+                typer.echo(f"  - {suggestion}")
+        else:
+            typer.echo(f"\n{check_mark} Title looks well optimized!")
+        
+    except Exception as e:
+        typer.echo(f"\u274c Error analyzing title: {e}", err=True)
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":
