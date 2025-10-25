@@ -44,6 +44,10 @@ app.add_typer(pricing_app, name="pricing")
 workflow_app = typer.Typer(help="Automated workflow pipelines")
 app.add_typer(workflow_app, name="workflow")
 
+# eBay API commands
+ebay_app = typer.Typer(help="Direct eBay API integration")
+app.add_typer(ebay_app, name="ebay")
+
 
 @app.command()
 def version():
@@ -837,7 +841,376 @@ def batch_pipeline(
         typer.echo(f"   - Export all: python -m thriftbot export ebay-csv")
         
     except Exception as e:
-        typer.echo(f"❌ Batch pipeline error: {e}", err=True)
+        typer.echo(f"\u274c Batch pipeline error: {e}", err=True)
+        raise typer.Exit(1)
+
+
+# eBay API commands
+@ebay_app.command("setup")
+def setup_ebay_oauth(
+    sandbox: bool = typer.Option(True, help="Use sandbox environment for testing")
+):
+    """Set up eBay OAuth2 authentication."""
+    
+    try:
+        from thriftbot.ebay_client import eBayAPIClient
+        
+        client = eBayAPIClient(sandbox=sandbox)
+        
+        # Generate OAuth URL
+        oauth_url = client.get_oauth_url(state="thriftbot_setup")
+        
+        typer.echo(f"🔗 eBay OAuth2 Setup ({'Sandbox' if sandbox else 'Production'})")
+        typer.echo(f"\n1. Open this URL in your browser:")
+        typer.echo(f"   {oauth_url}")
+        typer.echo(f"\n2. Authorize ThriftBot to access your eBay account")
+        typer.echo(f"\n3. Copy the authorization code from the callback URL")
+        
+        # Get authorization code from user
+        auth_code = typer.prompt("\nEnter the authorization code from eBay")
+        
+        # Exchange code for tokens
+        tokens = client.exchange_code_for_tokens(auth_code)
+        
+        typer.echo(f"\n✅ OAuth2 setup successful!")
+        typer.echo(f"\n🔐 Your tokens:")
+        typer.echo(f"   Access Token: {tokens['access_token'][:20]}...")
+        typer.echo(f"   Refresh Token: {tokens['refresh_token'][:20]}...")
+        typer.echo(f"   Expires in: {tokens['expires_in']} seconds")
+        
+        typer.echo(f"\n📝 Add to your .env file:")
+        typer.echo(f"   EBAY_REFRESH_TOKEN={tokens['refresh_token']}")
+        
+    except Exception as e:
+        typer.echo(f"❌ OAuth2 setup failed: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@ebay_app.command("list")
+def create_ebay_listing(
+    sku: str = typer.Option(..., help="Item SKU to list on eBay"),
+    sandbox: bool = typer.Option(True, help="Use sandbox environment")
+):
+    """Create eBay listing directly via API."""
+    
+    try:
+        from thriftbot.ebay_client import create_ebay_listing_from_sku, eBayAPIClient
+        
+        typer.echo(f"🚀 Creating eBay listing for {sku} ({'sandbox' if sandbox else 'production'})...")
+        
+        client = eBayAPIClient(sandbox=sandbox)
+        result = create_ebay_listing_from_sku(sku, client)
+        
+        if result["success"]:
+            typer.echo(f"\n✅ Listing created successfully!")
+            typer.echo(f"   SKU: {result['sku']}")
+            typer.echo(f"   Offer ID: {result['offer_id']}")
+            if result.get("listing_id"):
+                typer.echo(f"   Listing ID: {result['listing_id']}")
+            typer.echo(f"   Status: {result['message']}")
+            
+            # Show next steps
+            typer.echo(f"\n📝 Next Steps:")
+            if sandbox:
+                typer.echo(f"   - View in eBay Sandbox Seller Hub")
+                typer.echo(f"   - Test with production: --no-sandbox")
+            else:
+                typer.echo(f"   - View in eBay Seller Hub")
+                typer.echo(f"   - Monitor performance with: python -m thriftbot ebay orders")
+            
+        else:
+            typer.echo(f"\n❌ Listing creation failed!")
+            typer.echo(f"   Error: {result['error']}")
+            typer.echo(f"   Message: {result['message']}")
+            
+    except Exception as e:
+        typer.echo(f"❌ Error creating eBay listing: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@ebay_app.command("research")
+def market_research(
+    keywords: str = typer.Option(..., help="Keywords to search for"),
+    category: Optional[str] = typer.Option(None, help="eBay category ID"),
+    limit: int = typer.Option(20, help="Number of results to show"),
+    sandbox: bool = typer.Option(True, help="Use sandbox environment")
+):
+    """Research completed eBay listings for market data."""
+    
+    try:
+        from thriftbot.ebay_client import eBayAPIClient
+        from tabulate import tabulate
+        
+        typer.echo(f"🔍 Researching eBay market for: '{keywords}'...")
+        
+        client = eBayAPIClient(sandbox=sandbox)
+        results = client.search_completed_items(keywords, category, limit)
+        
+        if results:
+            typer.echo(f"\n📈 Found {len(results)} completed listings:")
+            
+            # Prepare table data
+            table_data = []
+            total_price = 0
+            
+            for item in results:
+                price = item["price"]
+                total_price += price
+                
+                table_data.append([
+                    item["title"][:50] + "..." if len(item["title"]) > 50 else item["title"],
+                    f"${price:.2f}",
+                    item["condition"] or "N/A",
+                    item["listing_type"] or "N/A"
+                ])
+            
+            headers = ["Title", "Sold Price", "Condition", "Type"]
+            typer.echo("\n" + tabulate(table_data, headers=headers, tablefmt="grid"))
+            
+            # Summary stats
+            avg_price = total_price / len(results)
+            prices = [item["price"] for item in results]
+            min_price = min(prices)
+            max_price = max(prices)
+            
+            typer.echo(f"\n📊 Market Summary:")
+            typer.echo(f"   Average Price: ${avg_price:.2f}")
+            typer.echo(f"   Price Range: ${min_price:.2f} - ${max_price:.2f}")
+            typer.echo(f"   Total Results: {len(results)}")
+            
+        else:
+            typer.echo(f"\n⚠️  No completed listings found for '{keywords}'")
+            
+    except Exception as e:
+        typer.echo(f"❌ Error researching market: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@ebay_app.command("orders")
+def check_orders(
+    days: int = typer.Option(7, help="Days to look back for orders"),
+    sandbox: bool = typer.Option(True, help="Use sandbox environment")
+):
+    """Check recent eBay orders and sync with inventory."""
+    
+    try:
+        from thriftbot.ebay_client import eBayAPIClient, sync_orders_with_inventory
+        from datetime import datetime, timedelta
+        from tabulate import tabulate
+        
+        typer.echo(f"📦 Checking eBay orders from last {days} days...")
+        
+        client = eBayAPIClient(sandbox=sandbox)
+        
+        # Get recent orders
+        start_date = (datetime.utcnow() - timedelta(days=days)).isoformat() + "Z"
+        end_date = datetime.utcnow().isoformat() + "Z"
+        
+        orders = client.get_orders({
+            "filter": f"creationdate:[{start_date}..{end_date}]",
+            "limit": 50
+        })
+        
+        order_list = orders.get("orders", [])
+        
+        if order_list:
+            typer.echo(f"\n📄 Found {len(order_list)} recent orders:")
+            
+            table_data = []
+            total_revenue = 0
+            
+            for order in order_list:
+                order_id = order.get("orderId", "N/A")
+                buyer = order.get("buyer", {}).get("username", "N/A")
+                total = float(order.get("pricingSummary", {}).get("total", {}).get("value", 0))
+                status = order.get("orderFulfillmentStatus", "N/A")
+                
+                total_revenue += total
+                
+                # Get item info
+                items = []
+                for line_item in order.get("lineItems", []):
+                    sku = line_item.get("sku", "N/A")
+                    title = line_item.get("title", "N/A")
+                    items.append(f"{sku}: {title[:30]}...")
+                
+                table_data.append([
+                    order_id[:15] + "..." if len(order_id) > 15 else order_id,
+                    buyer,
+                    f"${total:.2f}",
+                    status,
+                    "\n".join(items[:2])  # Show max 2 items
+                ])
+            
+            headers = ["Order ID", "Buyer", "Total", "Status", "Items"]
+            typer.echo("\n" + tabulate(table_data, headers=headers, tablefmt="grid"))
+            
+            typer.echo(f"\n💰 Revenue Summary:")
+            typer.echo(f"   Total Revenue: ${total_revenue:.2f}")
+            typer.echo(f"   Average Order: ${total_revenue/len(order_list):.2f}")
+            typer.echo(f"   Orders: {len(order_list)}")
+            
+            # Sync with inventory
+            if typer.confirm("\n🔄 Sync these orders with ThriftBot inventory?"):
+                sync_result = sync_orders_with_inventory()
+                
+                if sync_result.get("success", True):
+                    typer.echo(f"\n✅ Inventory sync complete:")
+                    typer.echo(f"   Orders processed: {sync_result['orders_processed']}")
+                    typer.echo(f"   Items updated: {sync_result['items_updated']}")
+                    
+                    if sync_result['errors']:
+                        typer.echo(f"\n⚠️  Sync errors:")
+                        for error in sync_result['errors']:
+                            typer.echo(f"   - {error}")
+                else:
+                    typer.echo(f"\n❌ Sync failed: {sync_result['error']}")
+            
+        else:
+            typer.echo(f"\n⚠️  No orders found in the last {days} days")
+            
+    except Exception as e:
+        typer.echo(f"❌ Error checking orders: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@ebay_app.command("status")
+def check_ebay_status(
+    sandbox: bool = typer.Option(True, help="Use sandbox environment")
+):
+    """Check eBay API connection status and account info."""
+    
+    try:
+        from thriftbot.ebay_client import eBayAPIClient
+        
+        typer.echo(f"🔍 Checking eBay API status ({'sandbox' if sandbox else 'production'})...")
+        
+        client = eBayAPIClient(sandbox=sandbox)
+        
+        # Test authentication
+        try:
+            token = client.get_access_token()
+            typer.echo(f"\n✅ Authentication: Success")
+            typer.echo(f"   Access Token: {token[:20]}...")
+        except Exception as e:
+            typer.echo(f"\n❌ Authentication: Failed")
+            typer.echo(f"   Error: {e}")
+            typer.echo(f"\n💡 Run 'python -m thriftbot ebay setup' to configure OAuth2")
+            return
+        
+        # Test API endpoints
+        try:
+            # Test inventory endpoint
+            offers = client.get_offers()
+            typer.echo(f"\n✅ Inventory API: Connected")
+            typer.echo(f"   Active offers: {len(offers.get('offers', []))}")
+        except Exception as e:
+            typer.echo(f"\n⚠️  Inventory API: {e}")
+        
+        try:
+            # Test orders endpoint
+            orders = client.get_orders({"limit": 1})
+            typer.echo(f"\n✅ Orders API: Connected")
+            typer.echo(f"   Recent orders found: {orders.get('total', 0)}")
+        except Exception as e:
+            typer.echo(f"\n⚠️  Orders API: {e}")
+        
+        # Show environment info
+        typer.echo(f"\n🌐 Environment Info:")
+        typer.echo(f"   Mode: {'Sandbox' if sandbox else 'Production'}")
+        typer.echo(f"   Sell API: {client.sell_api_base}")
+        typer.echo(f"   Finding API: {client.finding_api_base}")
+        
+        if sandbox:
+            typer.echo(f"\n💡 Ready for production? Use --no-sandbox flag")
+        
+    except Exception as e:
+        typer.echo(f"❌ Error checking eBay status: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@ebay_app.command("test")
+def test_ebay_integration(
+    sku: Optional[str] = typer.Option(None, help="Test with specific SKU"),
+    sandbox: bool = typer.Option(True, help="Use sandbox environment")
+):
+    """Test eBay API integration with sample data."""
+    
+    try:
+        from thriftbot.ebay_client import eBayAPIClient, _build_ebay_listing_data
+        from thriftbot.db import get_inventory_items
+        import json
+        
+        typer.echo(f"🧪 Testing eBay API integration ({'sandbox' if sandbox else 'production'})...")
+        
+        client = eBayAPIClient(sandbox=sandbox)
+        
+        # Get test item
+        if sku:
+            from thriftbot.db import get_item_by_sku
+            item = get_item_by_sku(sku)
+            if not item:
+                typer.echo(f"❌ Item with SKU {sku} not found")
+                return
+        else:
+            items = get_inventory_items()
+            if not items:
+                typer.echo(f"❌ No items found in inventory for testing")
+                return
+            item = items[0]
+            sku = item.sku
+        
+        typer.echo(f"\n📄 Testing with item: {item.brand} {item.name} (SKU: {sku})")
+        
+        # Test listing data generation
+        try:
+            listing_data = _build_ebay_listing_data(item)
+            typer.echo(f"\n✅ Listing data generation: Success")
+            
+            # Show preview of generated data
+            inventory_item = listing_data["inventory_item"]
+            offer = listing_data["offer"]
+            
+            typer.echo(f"\n📝 Generated Listing Preview:")
+            typer.echo(f"   Title: {inventory_item['product']['title']}")
+            typer.echo(f"   Price: ${offer['pricingSummary']['price']['value']}")
+            typer.echo(f"   Condition: {inventory_item['condition']}")
+            typer.echo(f"   Category: {offer['categoryId']}")
+            
+        except Exception as e:
+            typer.echo(f"\n❌ Listing data generation: Failed ({e})")
+            return
+        
+        # Test API connection
+        try:
+            token = client.get_access_token()
+            typer.echo(f"\n✅ API Authentication: Success")
+        except Exception as e:
+            typer.echo(f"\n❌ API Authentication: Failed ({e})")
+            return
+        
+        # Test dry-run listing creation
+        if typer.confirm("\n🚀 Create actual test listing?"):
+            try:
+                result = create_ebay_listing_from_sku(sku, client)
+                
+                if result["success"]:
+                    typer.echo(f"\n✅ Test listing created successfully!")
+                    typer.echo(f"   Offer ID: {result['offer_id']}")
+                    if result.get("listing_id"):
+                        typer.echo(f"   Listing ID: {result['listing_id']}")
+                else:
+                    typer.echo(f"\n❌ Test listing failed: {result['error']}")
+                    
+            except Exception as e:
+                typer.echo(f"\n❌ Test listing error: {e}")
+        else:
+            typer.echo(f"\n✅ Test completed without creating actual listing")
+        
+        typer.echo(f"\n🎉 eBay integration test complete!")
+        
+    except Exception as e:
+        typer.echo(f"❌ Error testing eBay integration: {e}", err=True)
         raise typer.Exit(1)
 
 
